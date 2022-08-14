@@ -80,11 +80,13 @@ profit_entry = ttk.Entry(entry_frame, textvariable= profit_var, width=10)
 profit_entry.grid(row=1, column=2, padx=10, pady=5)
 
 def save_data():
+    status_var.set("")
     date = cal.get_date().strftime('%Y%m%d')
     profit = float(profit_var.get())
     capital = float(capital_var.get())
     if not db.connect(db.valid_date, date):
-        print("ERROR")
+        status_var.set(f"data for {date} already exists")
+        status_lab.config(fg='red')
         return
     last_data = db.connect(db.fetch_last_row)
     if last_data:
@@ -95,6 +97,8 @@ def save_data():
 
     db.connect(db.add_record, date, opening, profit, closing, capital) 
     show_query(plot=False)
+    status_var.set(f"data for {date} added")
+    status_lab.config(fg='green')
 
 
 save_btn = ttk.Button(entry_frame, text="Save", command=save_data).grid(column=3, row=0, rowspan=2, padx=10)
@@ -197,15 +201,30 @@ def consec_wins_losses(data):
                 consec_wins_amt.append(profit)
             count = 0
             profit = 0
-
-    if len(consec_wins) > 0 and max(consec_wins) > count:
+    if count > 0:
+        consec_wins.append(count)
+        consec_wins_amt.append(profit)
+    if len(consec_wins) > 0:
         max_consec_wins = max(consec_wins)
-        max_consec_wins_amt = consec_wins_amt[consec_wins.index(max(consec_wins))]
+        max_consec_wins_amt = consec_wins_amt[consec_wins.index(max_consec_wins)]
     else:
         max_consec_wins = count
         max_consec_wins_amt = profit
     
+    occurance = occur_var.get().strip()
 
+    win_occur = 0
+    loss_occur = 0
+    print(consec_wins)
+    if occurance:
+        if len(consec_wins) > 0:
+            win_occur = consec_wins.count(int(occurance))
+        
+    else:
+        if len(consec_wins) > 0:
+            
+            win_occur = consec_wins.count(max_consec_wins)
+        
     count = 0
     loss = 0
     for i in results:
@@ -219,21 +238,25 @@ def consec_wins_losses(data):
                 consec_losses_amt.append(loss)
             count = 0
             loss = 0
-
-    if len(consec_losses) > 0 and max(consec_losses) > count:    
+    if count > 0:
+        consec_losses.append(count)
+        consec_losses_amt.append(loss)
+    if len(consec_losses) > 0:    
         max_consec_losses = max(consec_losses)
         max_consec_loss_amt = consec_losses_amt[consec_losses.index(max(consec_losses))]
     else:
         max_consec_losses = count
         max_consec_loss_amt = loss
-    occurance = occur_var.get().strip()
-    win_occur = 0
-    loss_occur = 0
     if occurance:
-        if len(consec_wins) > 0:
-            win_occur = consec_wins.count(int(occurance))
+        if len(consec_losses) > 0:
+            loss_occur = consec_losses.count(int(occurance))
+    else:
+        if len(consec_losses) > 0:
+            loss_occur = consec_losses.count(max_consec_losses)
         
-    return max_consec_wins, max_consec_losses, max_consec_wins_amt, max_consec_loss_amt
+
+    return max_consec_wins, max_consec_losses, max_consec_wins_amt, max_consec_loss_amt, win_occur, loss_occur
+        
     
     
 
@@ -243,7 +266,7 @@ def show_query(plot=True):
     for i in tv.get_children():
         tv.delete(i)
     data = db.connect(db.get_data, from_date, to_date)
-    wins, losses, wins_amt, losses_amt = consec_wins_losses(data)
+    wins, losses, wins_amt, losses_amt, win_occur, loss_occur = consec_wins_losses(data)
     initial_balance = data[0][1] + data[0][3]
     final_balance = data[-1][-1]
     growth = round(((final_balance - initial_balance) / initial_balance) * 100, 2)
@@ -252,13 +275,22 @@ def show_query(plot=True):
     losses_var.set(f'Max Losses: {losses}')
     wins_amt_var.set(f'Amount: {wins_amt}')
     losses_amt_var.set(f'Amount: {losses_amt}')
+    win_occurance_var.set(f'Win Occurance: {win_occur}')
+    loss_occurance_var.set(f'loss Occurance: {loss_occur}')
 
     for i,row in enumerate(data):
         formatted_date = datetime.strptime(row[0], '%Y%m%d').strftime('%d-%m-%Y')
         tv.insert(parent='', index=i, iid=i, values=(formatted_date, *row[1:]))
+    
+    child_id = tv.get_children()[-1]
+    print(f"{child_id} child_id")
+    tv.selection_set(child_id)
+    tv.yview_moveto(1)
+    capital_var.set('0')
+    root.update()   
+
     if plot:
         plot_graph(from_date, to_date)
-    capital_var.set('0')
     
 
 query_btn = ttk.Button(query_frame, text="Show", command=show_query).grid(column=3, row=0, rowspan=2, padx=10)
